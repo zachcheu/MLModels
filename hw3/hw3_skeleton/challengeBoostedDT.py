@@ -22,7 +22,7 @@ Xtest = X[nTrain:, :]
 ytest = y[nTrain:]
 
 # train the boosted DT
-model = BestClassifier()
+model = BoostedDT()
 model.fit(Xtrain, ytrain)
 ypred = model.predict(Xtest)
 

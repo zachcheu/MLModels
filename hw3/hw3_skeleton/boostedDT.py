@@ -34,17 +34,26 @@ class BoostedDT:
         self.K = int(np.amax(y) - np.amin(y)) + 1
         
         for i in range(self.iters):
-            clf = tree.DecisionTreeClassifier(max_depth=self.depth)
-            clf.fit(X, y, sample_weight=weight)
+            clf = tree.DecisionTreeClassifier(max_depth=self.depth).fit(X, y, sample_weight=weight)
             trainResults = clf.predict(X)
-            resultsInputEqual = np.equal(trainResults, y)
-            incorrectIndex = np.argwhere(np.invert(resultsInputEqual))
-            error = weight[incorrectIndex].sum()
+            # print(weight)
+            # print("predict: ", trainResults)
+            # print("actual: ", y)
+            resultsInputNotEqual = np.not_equal(trainResults, y)
+            # incorrectIndex = np.argwhere(resultsInputNotEqual)
+            # print(incorrectIndex)
+            # error = weight[incorrectIndex].sum()
+            error = (weight * resultsInputNotEqual).sum()
             B = 0.5 * (np.log((1-error)/error) + np.log(self.K-1))
-            weightChangeScale = np.where(resultsInputEqual, 1, np.exp(B))
-            weight = np.multiply(weight, weightChangeScale)
+            # print(resultsInputNotEqual)
+            # weightChangeScale = np.where(resultsInputNotEqual, 1, np.exp(B))
+            # print(weightChangeScale)
+            # weight = np.multiply(weight, weightChangeScale)
+            # weight = np.multiply(weight, 1/weight.sum())
 
-            weight = np.multiply(weight, 1/weight.sum())
+            weight = weight * np.exp(B * resultsInputNotEqual)
+            weight = weight/weight.sum()
+
             self.tree_weight.append(B)
             self.models.append(clf)
 
@@ -62,5 +71,5 @@ class BoostedDT:
         for i, model in enumerate(self.models):
             classified = model.predict(X)
             for index, val in np.ndenumerate(classified):
-                counter[index, int(val-1)] += self.tree_weight[i]
+                counter[index, int(val)] += self.tree_weight[i]
         return np.argmax(counter, axis=1)
