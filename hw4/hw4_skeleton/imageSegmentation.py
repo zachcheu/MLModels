@@ -17,7 +17,7 @@ def diff(clusters1, clusters2):
     diff = 0
     for i in range(len(clusters1)):
         # maybe just use x,y for difference
-        diff += (np.absolute(clusters1[i] - clusters2[i])).sum()
+        diff += (np.absolute((clusters1[i] - clusters2[i]) ** 2)).sum()
     print(diff)
     return diff
 
@@ -28,16 +28,18 @@ if __name__ == "__main__":
     inFile = sys.argv[2]
     outFile = sys.argv[3]
     im = Image.open(inFile)
+    print(im.size)
     imgV = np.array(im)
     imgV = imgV[:,:,:3]
-    x,y,z = imgV.shape
-    imgFeature = np.empty((0,5),int)
-    for i in range(x):
-        for j in range(y):
-            temp = np.array([[i, j, imgV[i,j,0], imgV[i,j,1], imgV[i,j,2]]])
+    xSize,ySize,zSize = imgV.shape
+    imgFeature = np.empty((0,5),float)
+    for i in range(xSize):
+        for j in range(ySize):
+            temp = np.array([[i/xSize, j/ySize, imgV[i,j,0]/255, imgV[i,j,1]/255, imgV[i,j,2]/255]])
             imgFeature = np.append(imgFeature, temp, axis=0)
 
     n = imgFeature.shape[0]
+    
     clusters = []
     for i in range(k):
         clusters.append(imgFeature[np.random.choice(n,1)])
@@ -47,7 +49,7 @@ if __name__ == "__main__":
     while newClusters is None or diff(newClusters, clusters) > epsilon:
         if newClusters is not None:
             clusters = newClusters
-        print("iteration: ", iteration)
+        #print("iteration: ", iteration)
         iteration+=1
         indexCounter = [0] * k
         indexSum = [[0,0,0,0,0] for i in range(k)]
@@ -66,30 +68,28 @@ if __name__ == "__main__":
             if indexCounter[i] == 0:
                 newClusters.append(imgFeature[np.random.choice(n,1)])
                 continue
-            x = math.floor(coord[0]/indexCounter[i])
-            y = math.floor(coord[1]/indexCounter[i])
-            r = math.floor(coord[2]/indexCounter[i])
-            g = math.floor(coord[3]/indexCounter[i])
-            b = math.floor(coord[4]/indexCounter[i])
-            print(x,y,i)
+            x = coord[0]/indexCounter[i]
+            y = coord[1]/indexCounter[i]
+            r = coord[2]/indexCounter[i]
+            g = coord[3]/indexCounter[i]
+            b = coord[4]/indexCounter[i]
+            #print(x,y,i)
             newClusters.append(np.array([x,y,r,g,b]).reshape((1,5)))
             
     clusters = [np.copy(i) for i in newClusters]
 
     npNewImage = np.copy(imgV)
-
-    for i in range(x):
-        for j in range(y):
-            index = closestClusterIndex(clusters, np.array([x,y,imgV[x,y,0],imgV[x,y,1],imgV[x,y,2]]) )
-            print(index)
-            print(clusters[index])
-            print(clusters[index].shape)
-            npNewImage[x,y] = clusters[index][:,2:]
+    # print(npNewImage)
+    #print(clusters)
+    for i in range(xSize):
+        for j in range(ySize):
+            index = closestClusterIndex(clusters, np.array([i/xSize,j/ySize,imgV[i,j,0]/255,imgV[i,j,1]/255,imgV[i,j,2]/255]))
+            npNewImage[i,j] = (255 * clusters[index][:,2:])
             
     print(npNewImage.shape)
     newImg = Image.fromarray(npNewImage)
     newImg.save(outFile)
-
+    print(n)
 
     
 

@@ -9,7 +9,7 @@ from math import ceil
 
 class NeuralNet:
 
-    def __init__(self, layers, learningRate, regParam, epsilon=0.12, numEpochs=1000):
+    def __init__(self, layers, learningRate, regParam, momentum, epsilon=0.12, numEpochs=1000):
         '''
         Constructor
         Arguments:
@@ -22,8 +22,10 @@ class NeuralNet:
         self.layers = layers
         self.learningRate = learningRate
         self.regParam = regParam
+        self.momentum = momentum
         self.epsilon = epsilon
         self.numEpochs = numEpochs
+        self.previous = None
       
 
     def fit(self, X, y):
@@ -37,17 +39,15 @@ class NeuralNet:
         prev = d
         self.theta = {}
 
-        one_hot = self.one_hot(y)
-
         for i,x in np.ndenumerate(self.layers):
             i = i[0]
             # +1 for bias
             self.theta[i] = np.random.random_sample((prev+1,x))
-            self.theta[i] = (self.theta[i] - 0.5) * 2 * self.epsilon
+            self.theta[i].fill(0.1)
             prev = x
         last = len(self.layers)
-        self.theta[last] = np.random.random_sample((prev+1, 10))
-        self.theta[last] = (self.theta[last] - 0.5) * 2 * self.epsilon
+        self.theta[last] = np.random.random_sample((prev+1, 1))
+        self.theta[last].fill(0.1)
         #theta[0] = layer between input and first layer
         #theta[last] = layer between l-1 to output layer
 
@@ -55,20 +55,19 @@ class NeuralNet:
             delta = {}
             for i in range(n):
                 activation = self.forward(X[i,:])
-                
+
                 #compute error layer by layer, backwards
                 error = {}
                 # theta = (nprev, ncurr)
                 # error[j+1] = (1,ncurr)
                 # error[j] = (1,nprev)
-
-                error[last+1] = activation[last+1] - one_hot[i]
+                error[last+1] = 2 * (activation[last+1]-y[i]) * activation[last+1] * (1-activation[last+1])
                 for j in range(last, 0, -1):
                     # print((activation[j] * (1-activation[j])).shape)
                     # gprime = (np.append(np.ones((1,1)), activation[j], axis=1) * (1-np.append(np.ones((1,1)), activation[j], axis=1)))
                     gprime = activation[j] * (1- activation[j])
                     error[j] = (error[j+1] @ self.theta[j].T)[:,1:] * gprime
-                
+                    
                 # compute gradients
                 for j in range(0, last+1):
                     # print(activation[j].shape)
@@ -87,30 +86,14 @@ class NeuralNet:
             
             # change weights
             for key in delta.keys():
-                self.theta[key] = self.theta[key] - (self.learningRate * delta[key])
-
-    def predict(self, X):
-        '''
-        Used the model to predict values for each instance in X
-        Arguments:
-            X is a n-by-d numpy array
-        Returns:
-            an n-dimensional numpy array of the predictions
-        '''
-        n,d = X.shape
-        output = []
-        for i in range(n):
-            x = X[i,:]
-            predictions = self.forward(x)[len(self.theta)]
-            output.append(predictions.argmax())
-        return np.asarray(output)
-
-    def one_hot(self, y):
-        y = y.astype(int)
-        n = y.shape[0]
-        one_hot = np.zeros((n, 10))
-        one_hot[np.arange(n), y] = 1
-        return one_hot
+                if self.previous is None:
+                    self.theta[key] = self.theta[key] - (self.learningRate * delta[key])
+                else:
+                    self.theta[key] = self.theta[key] - (self.learningRate * delta[key]) - self.momentum * self.previous[key]
+            
+            print("Weights: ", self.theta[0][1], self.theta[0][2], self.theta[0][0], self.theta[1][1], self.theta[0][0])
+            print("Gradients: ", delta[0][1], delta[0][2], delta[0][0], delta[1][1], delta[1][0])
+            self.previous = delta
 
     def forward(self, initial_activation):
         activation = {}
@@ -119,28 +102,8 @@ class NeuralNet:
             activation[i+1] = np.append(np.ones((1,1)), activation[i], axis=1) @ self.theta[i]
             activation[i+1] = 1/(1+np.exp(-activation[i+1]))
         return activation
-    
-    def visualizeHiddenNodes(self, filename):
-        '''
-        Outputs a visualization of the hidden layers
-        Arguments:
-            filename - the filename to store the image
-        '''
-        group_photo = Image.new('L', (106, 106))
-        layer = 0
-        minVal = np.min(self.theta[0][1:])
-        maxVal = np.max(self.theta[0][1:])
-        for i in range(5):
-            for j in range(5):
-                img = Image.new('L', (20, 20))
-                pixelValues = self.theta[0][1:,layer].reshape((20,20))
-                pixelValues -= minVal
-                pixelValues *= 255/(maxVal-minVal)
-                pixels = img.load()
-                for x in range(img.size[0]):
-                    for y in range(img.size[1]): 
-                        pixels[x,y] = (ceil(pixelValues[x,y]))
-                group_photo.paste(img, (1+(i*21), 1+(j*21)))
-                layer +=1 
-        group_photo.save(filename)
-        
+
+if __name__ == "__main__":
+    layers = np.array([1])
+    clf = NeuralNet(layers, 0.3, 0, 0.9, 0, 2)
+    clf.fit(np.array([[1,0],[0,1]]), np.array([1,0]))
